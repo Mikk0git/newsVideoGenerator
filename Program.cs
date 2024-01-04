@@ -9,9 +9,14 @@
             Random random = new Random();
             int id = random.Next(10000, 100000);
 
-            Article article = scrapeArticle("https://sex.com");
 
-            string script = GenerateScript(article);
+            List <Article> articleList = new List<Article>();
+            foreach (var url in args)
+            {
+                articleList.Add(scrapeArticle(url));
+            }
+
+            string script = GenerateScript(articleList);
 
             GenerateAudio(script,id);
 
@@ -38,7 +43,7 @@
             return article;
         }
 
-        static string GenerateScript(Article article)
+        static string GenerateScript(List <Article> articleList)
         {
             Console.WriteLine("Generating script");
 
