@@ -1,7 +1,12 @@
 ﻿using HtmlAgilityPack;
 using DotNetEnv;
+using Microsoft.Extensions.DependencyInjection;
+using OpenAI.Managers;
+using OpenAI;
+using OpenAI.ObjectModels.RequestModels;
+using OpenAI.ObjectModels;
 
-namespace newsVideoGenerator
+namespace NewsVideoGenerator
 {
     public class Article
     {
@@ -13,7 +18,7 @@ namespace newsVideoGenerator
     {
         static async Task Main(string[] args)
         {
-            DotNetEnv.Env.Load();
+            Env.Load();
 
             Console.WriteLine("---NEWS VIDEO GEN---");
 
@@ -24,11 +29,11 @@ namespace newsVideoGenerator
             foreach (var url in args)
             {
                 // Await the asynchronous method call
-                Article article = await scrapeArticleAsync(url);
+                Article article = await ScrapeArticleAsync(url);
                 articleList.Add(article);
             }
 
-            string script = GenerateScript(articleList);
+            string script = await GenerateScriptAsync(articleList);
 
             GenerateAudio(script, id);
 
@@ -36,7 +41,7 @@ namespace newsVideoGenerator
         }
 
 
-        static async Task<Article> scrapeArticleAsync(string url)
+        static async Task<Article> ScrapeArticleAsync(string url)
         {
             Article article = new Article();
             Console.WriteLine($"Scraping {url}");
@@ -55,7 +60,7 @@ namespace newsVideoGenerator
             {
                 case var _ when url.Contains("bbc"):
                     Console.WriteLine("BBC article found");
-                    article = mineBBC(article, htmlDocument);
+                    article = MineBBC(article, htmlDocument);
                     break;
                 default:
                     Console.WriteLine("Source unknown");
@@ -67,7 +72,7 @@ namespace newsVideoGenerator
             return article;
         }
 
-        static Article mineBBC(Article article, HtmlDocument htmlDocument)
+        static Article MineBBC(Article article, HtmlDocument htmlDocument)
         {
             article.title = htmlDocument.DocumentNode.SelectSingleNode("//title").InnerText;
             //Console.WriteLine($"Title: {article.title}");
@@ -89,13 +94,40 @@ namespace newsVideoGenerator
         }
 
 
-        static string GenerateScript(List <Article> articleList)
+        static async Task<string> GenerateScriptAsync(List <Article> articleList)
         {
-            string? openai_api = Environment.GetEnvironmentVariable("OPENAI_API");
-            Console.WriteLine(openai_api);
             Console.WriteLine("Generating script");
 
-            string script = "djasujndja";
+            string combinedArticles = "";
+            foreach (var article in articleList) {
+                combinedArticles = combinedArticles + article.title + article.content;
+            }
+
+
+            var openAiService = new OpenAIService(new OpenAiOptions()
+            {
+                ApiKey = Environment.GetEnvironmentVariable("OPENAI_API") ?? ""
+            });
+
+            var completionResult = await openAiService.ChatCompletion.CreateCompletion(new ChatCompletionCreateRequest
+            {
+                Messages = new List<ChatMessage>
+                {
+                    ChatMessage.FromSystem("Write a short summary of this articles that will be presented as a short form (under a minute) video." +
+                    " It must start with an interesting litte clickbait. The video must be under a minute, about 140 words." +
+                    " Write only the script, NO hashtags, NO greatings, NO `???`, NO `#' etc. Remember to DO NOT ADD # hashtags at the end"),
+                    ChatMessage.FromUser($"{combinedArticles}"),
+                },
+                Model = Models.Gpt_3_5_Turbo,
+            });
+            string script = "";
+            if (completionResult.Successful)
+            {
+                script = completionResult.Choices.First().Message.Content ?? "";
+                Console.WriteLine();
+            }
+
+
 
             return script;
         }
