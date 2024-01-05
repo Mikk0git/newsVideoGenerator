@@ -1,4 +1,5 @@
 ﻿using HtmlAgilityPack;
+using DotNetEnv;
 
 namespace newsVideoGenerator
 {
@@ -12,6 +13,8 @@ namespace newsVideoGenerator
     {
         static async Task Main(string[] args)
         {
+            DotNetEnv.Env.Load();
+
             Console.WriteLine("---NEWS VIDEO GEN---");
 
             Random random = new Random();
@@ -88,6 +91,8 @@ namespace newsVideoGenerator
 
         static string GenerateScript(List <Article> articleList)
         {
+            string? openai_api = Environment.GetEnvironmentVariable("OPENAI_API");
+            Console.WriteLine(openai_api);
             Console.WriteLine("Generating script");
 
             string script = "djasujndja";
