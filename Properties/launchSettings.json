@@ -1,9 +1,0 @@
-{
-  "profiles": {
-    "newsVideoGenerator": {
-      "commandName": "Project",
-      //"commandLineArgs": ""
-      "commandLineArgs": ""
-    }
-  }
-}
