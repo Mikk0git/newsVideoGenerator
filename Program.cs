@@ -1,6 +1,5 @@
 ﻿using HtmlAgilityPack;
 using DotNetEnv;
-using Microsoft.Extensions.DependencyInjection;
 using OpenAI.Managers;
 using OpenAI;
 using OpenAI.ObjectModels.RequestModels;
@@ -20,10 +19,20 @@ namespace NewsVideoGenerator
         {
             Env.Load();
 
+            OpenAIService openAiService = new OpenAIService(new OpenAiOptions()
+            {
+                ApiKey = Environment.GetEnvironmentVariable("OPENAI_API") ?? ""
+            });
+
             Console.WriteLine("---NEWS VIDEO GEN---");
 
             Random random = new Random();
             int id = random.Next(10000, 100000);
+            Console.WriteLine($"ID: {id}");
+
+
+            string outputPath = $"output/{id}";
+            System.IO.Directory.CreateDirectory(outputPath);
 
             List<Article> articleList = new List<Article>();
             foreach (var url in args)
@@ -33,9 +42,9 @@ namespace NewsVideoGenerator
                 articleList.Add(article);
             }
 
-            string script = await GenerateScriptAsync(articleList);
+            string script = await GenerateScriptAsync(articleList, openAiService);
 
-            GenerateAudio(script, id);
+            await GenerateAudioAsync(script, id, outputPath, openAiService);
 
             MakeVideo(id);
         }
@@ -94,7 +103,7 @@ namespace NewsVideoGenerator
         }
 
 
-        static async Task<string> GenerateScriptAsync(List <Article> articleList)
+        static async Task<string> GenerateScriptAsync(List <Article> articleList, OpenAIService openAiService)
         {
             Console.WriteLine("Generating script");
 
@@ -104,10 +113,7 @@ namespace NewsVideoGenerator
             }
 
 
-            var openAiService = new OpenAIService(new OpenAiOptions()
-            {
-                ApiKey = Environment.GetEnvironmentVariable("OPENAI_API") ?? ""
-            });
+
 
             var completionResult = await openAiService.ChatCompletion.CreateCompletion(new ChatCompletionCreateRequest
             {
@@ -124,7 +130,7 @@ namespace NewsVideoGenerator
             if (completionResult.Successful)
             {
                 script = completionResult.Choices.First().Message.Content ?? "";
-                Console.WriteLine();
+                Console.WriteLine(script);
             }
 
 
@@ -132,9 +138,28 @@ namespace NewsVideoGenerator
             return script;
         }
 
-        static void GenerateAudio(string script, int id)
+        static async Task GenerateAudioAsync(string script, int id, string outputPath, OpenAIService openAiService)
         {
             Console.WriteLine("Generating audio");
+
+
+            var completionResult = await openAiService.Audio.CreateSpeech<Stream>(new AudioCreateSpeechRequest
+            {
+                Model = Models.Tts_1,
+                Input  = script,
+                Voice = StaticValues.AudioStatics.Voice.Onyx,
+                ResponseFormat = StaticValues.AudioStatics.CreateSpeechResponseFormat.Mp3,
+                Speed = 1.3f
+            });
+            if (completionResult.Successful)
+            {
+                var audio = completionResult.Data!;
+                await using var fileStream = File.Create($"{outputPath}/{id}.mp3");
+                await audio.CopyToAsync(fileStream);
+
+                Console.WriteLine($"Audio {id}.mp3 generated successfully");
+            }
+
         }
         static void MakeVideo(int id)
         {
