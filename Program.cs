@@ -4,6 +4,7 @@ using OpenAI.Managers;
 using OpenAI;
 using OpenAI.ObjectModels.RequestModels;
 using OpenAI.ObjectModels;
+using FFMpegCore;
 
 namespace NewsVideoGenerator
 {
@@ -44,7 +45,7 @@ namespace NewsVideoGenerator
 
             string script = await GenerateScriptAsync(articleList, openAiService);
 
-            await GenerateAudioAsync(script, id, outputPath, openAiService);
+            await GenerateAudioAsync(script, id, openAiService);
 
             MakeVideo(id);
         }
@@ -138,7 +139,7 @@ namespace NewsVideoGenerator
             return script;
         }
 
-        static async Task GenerateAudioAsync(string script, int id, string outputPath, OpenAIService openAiService)
+        static async Task GenerateAudioAsync(string script, int id, OpenAIService openAiService)
         {
             Console.WriteLine("Generating audio");
 
@@ -154,7 +155,7 @@ namespace NewsVideoGenerator
             if (completionResult.Successful)
             {
                 var audio = completionResult.Data!;
-                await using var fileStream = File.Create($"{outputPath}/{id}.mp3");
+                await using var fileStream = File.Create($"output/{id}/{id}.mp3");
                 await audio.CopyToAsync(fileStream);
 
                 Console.WriteLine($"Audio {id}.mp3 generated successfully");
@@ -164,6 +165,37 @@ namespace NewsVideoGenerator
         static void MakeVideo(int id)
         {
             Console.WriteLine("Making final video");
+            
+            string videoPath = $"";
+            string audioPath = $"output/{id}/{id}.mp3";
+            string outputPath = $"output/{id}";
+            string videoTrimmedPath = $"{outputPath}/{id}Trimmed.mp4";
+            string videoScaled = $"{outputPath}/{id}Scaled.mp4";
+            string videoNoAudioPath = $"{outputPath}/{id}NoAudio.mp4";
+            string videoFinalPath = $"{outputPath}/{id}.mp4";
+
+            var audioInfo = FFProbe.Analyse(audioPath);
+            TimeSpan audioDuration = audioInfo.Duration;
+            double audioTotalSeconds = audioDuration.TotalSeconds;
+            //Console.WriteLine($"Audio duration: {audioTotalSeconds}");
+
+            var videoInfo = FFProbe.Analyse(videoPath);
+            TimeSpan videoDuration = videoInfo.Duration;
+            double videoTotalSeconds = videoDuration.TotalSeconds;
+            //Console.WriteLine($"Video duration: {videoTotalSeconds}");
+
+            Random random = new Random();
+            int randomTime = random.Next(10, (int)videoTotalSeconds - ((int)audioTotalSeconds) + 10);
+
+
+            FFMpeg.SubVideo(videoPath, videoTrimmedPath,TimeSpan.FromSeconds(randomTime),TimeSpan.FromSeconds(randomTime+audioTotalSeconds));
+            Console.WriteLine("Video trimmed");
+            FFMpeg.Mute(videoTrimmedPath, videoNoAudioPath);
+            Console.WriteLine("Video muted");
+            FFMpeg.ReplaceAudio(videoNoAudioPath, audioPath, videoFinalPath);
+            Console.WriteLine("Video combined with audio");
+            Console.WriteLine($"Final video: {videoFinalPath}");
+
         }
     }
 }
