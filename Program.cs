@@ -70,9 +70,9 @@ namespace NewsVideoGenerator
 
             string script = await GenerateScriptAsync(articleList, openAiService, configJson.gptModel, configJson.gptPrompt);
 
-            await GenerateAudioAsync(script, id, openAiService, configJson.ttsModel, configJson.ttsVoice, configJson.ttsSpeed);
+            //await GenerateAudioAsync(script, id, openAiService, configJson.ttsModel, configJson.ttsVoice, configJson.ttsSpeed);
 
-            MakeVideo(id , configJson.videoDirectory);
+            //MakeVideo(id , configJson.videoDirectory);
         }
 
 
@@ -97,6 +97,10 @@ namespace NewsVideoGenerator
                     Console.WriteLine("BBC article found");
                     article = MineBBC(article, htmlDocument);
                     break;
+                case var _ when url.Contains("cnn"):
+                    Console.WriteLine("CNN article found");
+                    article = MineCNN(article, htmlDocument);
+                    break;
                 default:
                     Console.WriteLine("Source unknown");
                     break;
@@ -117,6 +121,25 @@ namespace NewsVideoGenerator
             {
                 article.content = string.Join("\n", contentNodes.Select(node => node.InnerText));
                 //Console.WriteLine($"Content: {article.content}");
+            }
+            else
+            {
+                Console.WriteLine("Content paragraphs not found.");
+            }
+
+            return article;
+        }
+
+        static Article MineCNN(Article article, HtmlDocument htmlDocument)
+        {
+            article.title = htmlDocument.DocumentNode.SelectSingleNode("//title").InnerText;
+            Console.WriteLine($"Title: {article.title}");
+
+            var contentNodes = htmlDocument.DocumentNode.SelectNodes("//p[@class='paragraph inline-placeholder']");
+            if (contentNodes != null)
+            {
+                article.content = string.Join("\n", contentNodes.Select(node => node.InnerText));
+                Console.WriteLine($"Content: {article.content}");
             }
             else
             {
