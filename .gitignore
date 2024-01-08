@@ -366,3 +366,6 @@ FodyWeavers.xsd
 Properties
 
 .env
+
+media
+*.json

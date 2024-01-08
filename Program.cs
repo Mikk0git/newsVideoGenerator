@@ -5,6 +5,7 @@ using OpenAI;
 using OpenAI.ObjectModels.RequestModels;
 using OpenAI.ObjectModels;
 using FFMpegCore;
+using System.Text.Json;
 
 namespace NewsVideoGenerator
 {
@@ -14,15 +15,39 @@ namespace NewsVideoGenerator
         public string? title { get; set; }
         public string? content { get; set; }
     }
+
+    public class Config
+    {
+        public List<string>? articles { get; set; }
+        public string videoDirectory { get; set; }
+        public string gptModel { get; set; }
+        public string ttsModel { get; set; }
+        public string ttsVoice { get; set; }
+        public float ttsSpeed { get; set; }
+        public string gptPrompt { get; set; }
+        public string? openaiAPI { get; set; }
+    }
     internal class Program
     {
+
         static async Task Main(string[] args)
         {
             Env.Load();
 
+            string configJsonString = "";
+            try
+            {
+                configJsonString = File.ReadAllText(args[0]);
+            }
+            catch {
+                configJsonString = File.ReadAllText("config.json");
+            }
+            Config configJson = JsonSerializer.Deserialize<Config>(configJsonString);
+            
+
             OpenAIService openAiService = new OpenAIService(new OpenAiOptions()
             {
-                ApiKey = Environment.GetEnvironmentVariable("OPENAI_API") ?? ""
+                ApiKey = Environment.GetEnvironmentVariable("OPENAI_API") ?? configJson.openaiAPI ?? ""
             });
 
             Console.WriteLine("---NEWS VIDEO GEN---");
@@ -36,18 +61,18 @@ namespace NewsVideoGenerator
             System.IO.Directory.CreateDirectory(outputPath);
 
             List<Article> articleList = new List<Article>();
-            foreach (var url in args)
+            foreach (var url in configJson.articles)
             {
-                // Await the asynchronous method call
+                if(string.IsNullOrWhiteSpace(url)) continue;
                 Article article = await ScrapeArticleAsync(url);
                 articleList.Add(article);
             }
 
-            string script = await GenerateScriptAsync(articleList, openAiService);
+            string script = await GenerateScriptAsync(articleList, openAiService, configJson.gptModel, configJson.gptPrompt);
 
-            await GenerateAudioAsync(script, id, openAiService);
+            await GenerateAudioAsync(script, id, openAiService, configJson.ttsModel, configJson.ttsVoice, configJson.ttsSpeed);
 
-            MakeVideo(id);
+            MakeVideo(id , configJson.videoDirectory);
         }
 
 
@@ -98,13 +123,11 @@ namespace NewsVideoGenerator
                 Console.WriteLine("Content paragraphs not found.");
             }
 
-
-
             return article;
         }
 
 
-        static async Task<string> GenerateScriptAsync(List <Article> articleList, OpenAIService openAiService)
+        static async Task<string> GenerateScriptAsync(List <Article> articleList, OpenAIService openAiService,string gptModelString , string gptPrompt)
         {
             Console.WriteLine("Generating script");
 
@@ -114,18 +137,25 @@ namespace NewsVideoGenerator
             }
 
 
-
+            var gptModel = "";
+            switch (gptModelString)
+            {
+                case ("Gpt_3_5_Turbo"):
+                    gptModel = Models.Gpt_3_5_Turbo;
+                    break;
+                case ("Gpt_4"):
+                    gptModel = Models.Gpt_4;
+                    break;
+            }
 
             var completionResult = await openAiService.ChatCompletion.CreateCompletion(new ChatCompletionCreateRequest
             {
                 Messages = new List<ChatMessage>
                 {
-                    ChatMessage.FromSystem("Write a short summary of this articles that will be presented as a short form (under a minute) video." +
-                    " It must start with an interesting litte clickbait. The video must be under a minute, about 140 words." +
-                    " Write only the script, NO hashtags, NO greatings, NO `???`, NO `#' etc. Remember to DO NOT ADD # hashtags at the end"),
+                    ChatMessage.FromSystem(gptPrompt),
                     ChatMessage.FromUser($"{combinedArticles}"),
                 },
-                Model = Models.Gpt_3_5_Turbo,
+                Model = gptModel,
             });
             string script = "";
             if (completionResult.Successful)
@@ -139,18 +169,53 @@ namespace NewsVideoGenerator
             return script;
         }
 
-        static async Task GenerateAudioAsync(string script, int id, OpenAIService openAiService)
+        static async Task GenerateAudioAsync(string script, int id, OpenAIService openAiService, string ttsModelString, string ttsVoiceString , float ttsSpeed)
         {
             Console.WriteLine("Generating audio");
 
 
+            var ttsVoice = "";
+            switch (ttsVoiceString)
+            {
+                case "Alloy":
+                    ttsVoice = StaticValues.AudioStatics.Voice.Alloy;
+                    break;
+                case "Echo":
+                    ttsVoice = StaticValues.AudioStatics.Voice.Echo;
+                    break;
+                case "Fable":
+                    ttsVoice = StaticValues.AudioStatics.Voice.Fable;
+                    break;
+                case "Onyx":
+                    ttsVoice = StaticValues.AudioStatics.Voice.Onyx;
+                    break;
+                case "Nova":
+                    ttsVoice = StaticValues.AudioStatics.Voice.Nova;
+                    break;
+                case "Shimmer":
+                    ttsVoice = StaticValues.AudioStatics.Voice.Shimmer;
+                    break;
+            }
+
+            var ttsModel = "";
+            switch (ttsModelString)
+            {
+                case "Tts_1":
+                    ttsModel = Models.Tts_1;
+                    break;
+                case "Tts_1_hd":
+                    ttsModel = Models.Tts_1_hd;
+                    break;
+            }
+
+
             var completionResult = await openAiService.Audio.CreateSpeech<Stream>(new AudioCreateSpeechRequest
             {
-                Model = Models.Tts_1,
+                Model = ttsModel,
                 Input  = script,
-                Voice = StaticValues.AudioStatics.Voice.Onyx,
+                Voice = ttsVoice,
                 ResponseFormat = StaticValues.AudioStatics.CreateSpeechResponseFormat.Mp3,
-                Speed = 1.3f
+                Speed = ttsSpeed
             });
             if (completionResult.Successful)
             {
@@ -162,11 +227,10 @@ namespace NewsVideoGenerator
             }
 
         }
-        static void MakeVideo(int id)
+        static void MakeVideo(int id, string videoPath)
         {
             Console.WriteLine("Making final video");
             
-            string videoPath = $"";
             string audioPath = $"output/{id}/{id}.mp3";
             string outputPath = $"output/{id}";
             string videoTrimmedPath = $"{outputPath}/{id}Trimmed.mp4";
