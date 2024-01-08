@@ -7,6 +7,7 @@ using OpenAI.ObjectModels;
 using FFMpegCore;
 using System.Text.Json;
 
+
 namespace NewsVideoGenerator
 {
     public class Article
@@ -70,9 +71,11 @@ namespace NewsVideoGenerator
 
             string script = await GenerateScriptAsync(articleList, openAiService, configJson.gptModel, configJson.gptPrompt);
 
-            //await GenerateAudioAsync(script, id, openAiService, configJson.ttsModel, configJson.ttsVoice, configJson.ttsSpeed);
+            await GenerateAudioAsync(script, id, openAiService, configJson.ttsModel, configJson.ttsVoice, configJson.ttsSpeed);
 
-            //MakeVideo(id , configJson.videoDirectory);
+            await GenerateSubtitlesAsync(id,openAiService, $"output/{id}/{id}.mp3");
+
+            MakeVideo(id , configJson.videoDirectory);
         }
 
 
@@ -250,6 +253,34 @@ namespace NewsVideoGenerator
             }
 
         }
+
+        static async Task GenerateSubtitlesAsync(int id, OpenAIService openAiService, string fileName)
+        {
+            Console.WriteLine("Generating subtitles");
+            var sampleFile = await File.ReadAllBytesAsync($"{fileName}");
+            var audioResult = await openAiService.Audio.CreateTranscription(new AudioCreateTranscriptionRequest
+            {
+                FileName = fileName,
+                File = sampleFile,
+                Model = Models.WhisperV1,
+                ResponseFormat = StaticValues.AudioStatics.ResponseFormat.Srt
+            });
+            if (audioResult.Successful)
+            {
+                string transcripton = string.Join("\n", audioResult.Text);
+                Console.WriteLine(transcripton);
+                File.WriteAllText($"output/{id}/{id}.srt", transcripton);
+            }
+            else
+            {
+                if (audioResult.Error == null)
+                {
+                    throw new Exception("Unknown Error");
+                }
+                Console.WriteLine($"{audioResult.Error.Code}: {audioResult.Error.Message}");
+            }
+        }
+
         static void MakeVideo(int id, string videoPath)
         {
             Console.WriteLine("Making final video");
