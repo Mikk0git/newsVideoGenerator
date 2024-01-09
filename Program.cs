@@ -6,6 +6,7 @@ using OpenAI.ObjectModels.RequestModels;
 using OpenAI.ObjectModels;
 using FFMpegCore;
 using System.Text.Json;
+using System.Diagnostics;
 
 
 namespace NewsVideoGenerator
@@ -26,6 +27,7 @@ namespace NewsVideoGenerator
         public string ttsVoice { get; set; }
         public float ttsSpeed { get; set; }
         public string gptPrompt { get; set; }
+        public string ffmpegDirectory { get; set; }
         public string? openaiAPI { get; set; }
     }
     internal class Program
@@ -73,9 +75,9 @@ namespace NewsVideoGenerator
 
             await GenerateAudioAsync(script, id, openAiService, configJson.ttsModel, configJson.ttsVoice, configJson.ttsSpeed);
 
-            await GenerateSubtitlesAsync(id,openAiService, $"output/{id}/{id}.mp3");
+            await GenerateSubtitlesAsync(id,openAiService, $"{outputPath}/{id}.mp3");
 
-            MakeVideo(id , configJson.videoDirectory);
+            MakeVideo(id , configJson.videoDirectory, configJson.ffmpegDirectory, outputPath);
         }
 
 
@@ -249,7 +251,7 @@ namespace NewsVideoGenerator
                 await using var fileStream = File.Create($"output/{id}/{id}.mp3");
                 await audio.CopyToAsync(fileStream);
 
-                Console.WriteLine($"Audio {id}.mp3 generated successfully");
+                Console.WriteLine($"Audio generated ");
             }
 
         }
@@ -281,37 +283,63 @@ namespace NewsVideoGenerator
             }
         }
 
-        static void MakeVideo(int id, string videoPath)
+        static string ffmpeg(string ffmpegPath, string arguments)
+        {
+            string result = String.Empty;
+
+            using (Process proc = new Process())
+            {
+                proc.StartInfo.UseShellExecute = false;
+                proc.StartInfo.CreateNoWindow = false;
+                proc.StartInfo.RedirectStandardOutput = true;
+                proc.StartInfo.FileName = ffmpegPath;
+                proc.StartInfo.Arguments = arguments;
+                proc.Start();
+                proc.WaitForExit();
+
+                result = proc.StandardOutput.ReadToEnd();
+            }
+            return result;
+        }
+        static void MakeVideo(int id, string videoPath,string ffmpegPath, string outputPath)
         {
             Console.WriteLine("Making final video");
-            
-            string audioPath = $"output/{id}/{id}.mp3";
-            string outputPath = $"output/{id}";
+
+            string audioPath = $"{outputPath}/{id}.mp3";
+            string subtitlesPath = $"{outputPath}/{id}.srt";
             string videoTrimmedPath = $"{outputPath}/{id}Trimmed.mp4";
-            string videoScaled = $"{outputPath}/{id}Scaled.mp4";
             string videoNoAudioPath = $"{outputPath}/{id}NoAudio.mp4";
+            string videoSubtitlesPath = $"{outputPath}/{id}Subtitles.mp4";
             string videoFinalPath = $"{outputPath}/{id}.mp4";
 
             var audioInfo = FFProbe.Analyse(audioPath);
             TimeSpan audioDuration = audioInfo.Duration;
             double audioTotalSeconds = audioDuration.TotalSeconds;
-            //Console.WriteLine($"Audio duration: {audioTotalSeconds}");
+            Console.WriteLine($"Audio duration: {audioTotalSeconds}");
+            Console.Write($"{TimeSpan.FromSeconds(audioTotalSeconds)}");
 
             var videoInfo = FFProbe.Analyse(videoPath);
             TimeSpan videoDuration = videoInfo.Duration;
             double videoTotalSeconds = videoDuration.TotalSeconds;
-            //Console.WriteLine($"Video duration: {videoTotalSeconds}");
+            Console.WriteLine($"Video duration: {videoTotalSeconds}");
 
             Random random = new Random();
             int randomTime = random.Next(10, (int)videoTotalSeconds - ((int)audioTotalSeconds) + 10);
 
 
-            FFMpeg.SubVideo(videoPath, videoTrimmedPath,TimeSpan.FromSeconds(randomTime),TimeSpan.FromSeconds(randomTime+audioTotalSeconds));
+
+            ffmpeg(ffmpegPath, $" -i {videoPath} -ss {randomTime} -t {audioTotalSeconds} -c copy {videoTrimmedPath}");
             Console.WriteLine("Video trimmed");
-            FFMpeg.Mute(videoTrimmedPath, videoNoAudioPath);
+
+            ffmpeg(ffmpegPath, $" -i {videoTrimmedPath}  -an {videoNoAudioPath}");
             Console.WriteLine("Video muted");
-            FFMpeg.ReplaceAudio(videoNoAudioPath, audioPath, videoFinalPath);
+
+            ffmpeg(ffmpegPath, $" -i {videoNoAudioPath} -vf subtitles={subtitlesPath} {videoSubtitlesPath}");
+            Console.WriteLine("Subtitles added");
+
+            ffmpeg(ffmpegPath, $"-i {videoSubtitlesPath} -i {audioPath} -c:v copy -c:a aac -strict experimental {videoFinalPath}");
             Console.WriteLine("Video combined with audio");
+
             Console.WriteLine($"Final video: {videoFinalPath}");
 
         }
