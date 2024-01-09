@@ -7,6 +7,8 @@ using OpenAI.ObjectModels;
 using FFMpegCore;
 using System.Text.Json;
 using System.Diagnostics;
+using static System.Net.Mime.MediaTypeNames;
+using System.Globalization;
 
 
 namespace NewsVideoGenerator
@@ -29,6 +31,13 @@ namespace NewsVideoGenerator
         public string gptPrompt { get; set; }
         public string ffmpegDirectory { get; set; }
         public string? openaiAPI { get; set; }
+    }
+
+    public class SubtitleElement
+    {
+        public TimeSpan start { get; set; }
+        public TimeSpan end { get; set; }
+        public string text { get; set; }
     }
     internal class Program
     {
@@ -144,7 +153,7 @@ namespace NewsVideoGenerator
             if (contentNodes != null)
             {
                 article.content = string.Join("\n", contentNodes.Select(node => node.InnerText));
-                Console.WriteLine($"Content: {article.content}");
+                //Console.WriteLine($"Content: {article.content}");
             }
             else
             {
@@ -270,8 +279,9 @@ namespace NewsVideoGenerator
             if (audioResult.Successful)
             {
                 string transcripton = string.Join("\n", audioResult.Text);
-                Console.WriteLine(transcripton);
+                //Console.WriteLine(transcripton);
                 File.WriteAllText($"output/{id}/{id}.srt", transcripton);
+                AtomizeSubtitles(transcripton);
             }
             else
             {
@@ -281,6 +291,60 @@ namespace NewsVideoGenerator
                 }
                 Console.WriteLine($"{audioResult.Error.Code}: {audioResult.Error.Message}");
             }
+        }
+
+        static void AtomizeSubtitles(string originalSubtitles)
+        {
+            //save srt file to originalSubtitleList
+            //not perfect but working (i hope)
+            using (StringReader reader = new StringReader(originalSubtitles))
+            {
+                string line;
+                int index = 1;
+                int mode = 0; // 0 = index, 1 = time, 2 = text 
+                SubtitleElement subtitleElement = null;
+                List<SubtitleElement> originalSubtitleList = [];
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if(line == index.ToString())
+                    {
+                        if (subtitleElement != null)
+                        {
+                            originalSubtitleList.Add(subtitleElement);
+                        }
+                        subtitleElement = new SubtitleElement();
+                        index++;
+                        mode = 1;
+                        
+                    }
+                    else if(mode == 1) 
+                    {
+                        string[] parts = line.Split(new string[] { " --> " }, StringSplitOptions.None);
+
+                        TimeSpan startTime = TimeSpan.ParseExact(parts[0].Replace(',', '.'), "hh\\:mm\\:ss\\.fff", CultureInfo.InvariantCulture);
+                        subtitleElement.start = startTime;
+
+                        TimeSpan endTime = TimeSpan.ParseExact(parts[1].Replace(',', '.'), "hh\\:mm\\:ss\\.fff", CultureInfo.InvariantCulture);
+                        subtitleElement.end = endTime;
+
+                        mode = 2;
+                    }
+                    else if(mode == 2)
+                    {
+                        subtitleElement.text = subtitleElement.text +  line;
+                    }
+                }
+                originalSubtitleList.Add(subtitleElement); //this line is needed because for loop ends before adding the last element to the list
+                for (int i = 0; i < originalSubtitleList.Count; i++) {
+                    Console.WriteLine($"index {i}");
+                    Console.WriteLine($"start {originalSubtitleList[i].start}");
+                    Console.WriteLine($"end {originalSubtitleList[i].end}");
+                    Console.WriteLine($"text {originalSubtitleList[i].text}");
+                }
+            }
+
+
+
         }
 
         static string ffmpeg(string ffmpegPath, string arguments)
