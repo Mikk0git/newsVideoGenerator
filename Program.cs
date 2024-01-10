@@ -297,13 +297,13 @@ namespace NewsVideoGenerator
         {
             //save srt file to originalSubtitleList
             //not perfect but working (i hope)
+            List<SubtitleElement> originalSubtitleList = [];
             using (StringReader reader = new StringReader(originalSubtitles))
             {
                 string line;
                 int index = 1;
                 int mode = 0; // 0 = index, 1 = time, 2 = text 
                 SubtitleElement subtitleElement = null;
-                List<SubtitleElement> originalSubtitleList = [];
                 while ((line = reader.ReadLine()) != null)
                 {
                     if(line == index.ToString())
@@ -335,15 +335,43 @@ namespace NewsVideoGenerator
                     }
                 }
                 originalSubtitleList.Add(subtitleElement); //this line is needed because for loop ends before adding the last element to the list
-                for (int i = 0; i < originalSubtitleList.Count; i++) {
-                    Console.WriteLine($"index {i}");
-                    Console.WriteLine($"start {originalSubtitleList[i].start}");
-                    Console.WriteLine($"end {originalSubtitleList[i].end}");
-                    Console.WriteLine($"text {originalSubtitleList[i].text}");
-                }
+                //for (int i = 0; i < originalSubtitleList.Count; i++) {
+                //    Console.WriteLine($"index {i}");
+                //    Console.WriteLine($"start {originalSubtitleList[i].start}");
+                //    Console.WriteLine($"end {originalSubtitleList[i].end}");
+                //    Console.WriteLine($"text {originalSubtitleList[i].text}");
+                //}
             }
 
+            //atomize the subtitles
+            List<SubtitleElement> newSubtitleList = [];
+            foreach (SubtitleElement oldSubtitle in originalSubtitleList)
+            {
+                string[] words = oldSubtitle.text.Split(' ');
+                int numberOfWords = words.Length;
+                TimeSpan oldSubtitleLength = oldSubtitle.end - oldSubtitle.start;
+                TimeSpan newSubtitleLength = oldSubtitleLength / numberOfWords;
+                Console.WriteLine($"oldSubtitleLength: {oldSubtitleLength}");
+                Console.WriteLine($"newSubtitleLength: {newSubtitleLength}");
 
+                
+                for (int i = 0; i < numberOfWords; i++)
+                {
+                    SubtitleElement newSubtitle = new SubtitleElement();
+                    newSubtitle.text = words[i];
+                    newSubtitle.start = oldSubtitle.start + (newSubtitleLength * i);
+                    newSubtitle.end = oldSubtitle.start + (newSubtitleLength * (i+1));
+                    newSubtitleList.Add(newSubtitle);
+                    
+                }
+            }
+            //for (int i = 0; i < newSubtitleList.Count; i++)
+            //{
+            //    Console.WriteLine($"index {i}");
+            //    Console.WriteLine($"start {newSubtitleList[i].start}");
+            //    Console.WriteLine($"end {newSubtitleList[i].end}");
+            //    Console.WriteLine($"text {newSubtitleList[i].text}");
+            //}
 
         }
 
