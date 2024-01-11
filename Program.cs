@@ -335,12 +335,6 @@ namespace NewsVideoGenerator
                     }
                 }
                 originalSubtitleList.Add(subtitleElement); //this line is needed because for loop ends before adding the last element to the list
-                for (int i = 0; i < originalSubtitleList.Count; i++) {
-                    Console.WriteLine($"index {i}");
-                    Console.WriteLine($"start {originalSubtitleList[i].start}");
-                    Console.WriteLine($"end {originalSubtitleList[i].end}");
-                    Console.WriteLine($"text {originalSubtitleList[i].text}");
-                }
             }
 
             //atomize the subtitles
@@ -349,28 +343,24 @@ namespace NewsVideoGenerator
             {
                 string[] words = oldSubtitle.text.Split(' ');
                 int numberOfWords = words.Length;
+                float lettersInText = oldSubtitle.text.Length;
                 TimeSpan oldSubtitleLength = oldSubtitle.end - oldSubtitle.start;
                 TimeSpan newSubtitleLength = oldSubtitleLength / numberOfWords;
-                Console.WriteLine($"oldSubtitleLength: {oldSubtitleLength}");
-                Console.WriteLine($"newSubtitleLength: {newSubtitleLength}");
-
+                TimeSpan totalSkipLength = TimeSpan.Zero;
                 
                 for (int i = 0; i < numberOfWords; i++)
                 {
+                    float lettersInWord = words[i].Length;
+
                     SubtitleElement newSubtitle = new SubtitleElement();
                     newSubtitle.text = words[i];
-                    newSubtitle.start = oldSubtitle.start + (newSubtitleLength * i);
-                    newSubtitle.end = oldSubtitle.start + (newSubtitleLength * (i+1));
+                    newSubtitle.start = oldSubtitle.start + totalSkipLength;
+                    totalSkipLength = totalSkipLength + (oldSubtitleLength * (lettersInWord / lettersInText));
+                    Console.WriteLine(totalSkipLength);
+                    newSubtitle.end = oldSubtitle.start + totalSkipLength;
                     newSubtitleList.Add(newSubtitle);
                     
                 }
-            }
-            for (int i = 0; i < newSubtitleList.Count; i++)
-            {
-                Console.WriteLine($"index {i}");
-                Console.WriteLine($"start {newSubtitleList[i].start}");
-                Console.WriteLine($"end {newSubtitleList[i].end}");
-                Console.WriteLine($"text {newSubtitleList[i].text}");
             }
 
 
@@ -378,10 +368,6 @@ namespace NewsVideoGenerator
             string newSubtitles = "";
             for (int i = 0; i < newSubtitleList.Count; i++)
             {
-                Console.WriteLine($"index {i}");
-                Console.WriteLine($"start {newSubtitleList[i].start}");
-                Console.WriteLine($"end {newSubtitleList[i].end}");
-                Console.WriteLine($"text {newSubtitleList[i].text}");
 
                 
                 string newStartString = newSubtitleList[i].start.ToString(@"hh\:mm\:ss\,fff");
