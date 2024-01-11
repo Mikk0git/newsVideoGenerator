@@ -281,7 +281,7 @@ namespace NewsVideoGenerator
                 string transcripton = string.Join("\n", audioResult.Text);
                 //Console.WriteLine(transcripton);
                 File.WriteAllText($"output/{id}/{id}.srt", transcripton);
-                AtomizeSubtitles(transcripton);
+                AtomizeSubtitles(id, transcripton);
             }
             else
             {
@@ -293,7 +293,7 @@ namespace NewsVideoGenerator
             }
         }
 
-        static void AtomizeSubtitles(string originalSubtitles)
+        static void AtomizeSubtitles(int id, string originalSubtitles)
         {
             //save srt file to originalSubtitleList
             //not perfect but working (i hope)
@@ -335,12 +335,12 @@ namespace NewsVideoGenerator
                     }
                 }
                 originalSubtitleList.Add(subtitleElement); //this line is needed because for loop ends before adding the last element to the list
-                //for (int i = 0; i < originalSubtitleList.Count; i++) {
-                //    Console.WriteLine($"index {i}");
-                //    Console.WriteLine($"start {originalSubtitleList[i].start}");
-                //    Console.WriteLine($"end {originalSubtitleList[i].end}");
-                //    Console.WriteLine($"text {originalSubtitleList[i].text}");
-                //}
+                for (int i = 0; i < originalSubtitleList.Count; i++) {
+                    Console.WriteLine($"index {i}");
+                    Console.WriteLine($"start {originalSubtitleList[i].start}");
+                    Console.WriteLine($"end {originalSubtitleList[i].end}");
+                    Console.WriteLine($"text {originalSubtitleList[i].text}");
+                }
             }
 
             //atomize the subtitles
@@ -365,14 +365,32 @@ namespace NewsVideoGenerator
                     
                 }
             }
-            //for (int i = 0; i < newSubtitleList.Count; i++)
-            //{
-            //    Console.WriteLine($"index {i}");
-            //    Console.WriteLine($"start {newSubtitleList[i].start}");
-            //    Console.WriteLine($"end {newSubtitleList[i].end}");
-            //    Console.WriteLine($"text {newSubtitleList[i].text}");
-            //}
+            for (int i = 0; i < newSubtitleList.Count; i++)
+            {
+                Console.WriteLine($"index {i}");
+                Console.WriteLine($"start {newSubtitleList[i].start}");
+                Console.WriteLine($"end {newSubtitleList[i].end}");
+                Console.WriteLine($"text {newSubtitleList[i].text}");
+            }
 
+
+            //Write to file
+            string newSubtitles = "";
+            for (int i = 0; i < newSubtitleList.Count; i++)
+            {
+                Console.WriteLine($"index {i}");
+                Console.WriteLine($"start {newSubtitleList[i].start}");
+                Console.WriteLine($"end {newSubtitleList[i].end}");
+                Console.WriteLine($"text {newSubtitleList[i].text}");
+
+                
+                string newStartString = newSubtitleList[i].start.ToString(@"hh\:mm\:ss\,fff");
+                string newEndString = newSubtitleList[i].end.ToString(@"hh\:mm\:ss\,fff");
+
+                newSubtitles = newSubtitles + $"{i + 1}\n{newStartString} --> {newEndString}\n{newSubtitleList[i].text}\n\n";  
+            }
+            File.WriteAllText($"output/{id}/{id}Atomised.srt", newSubtitles);
+            Console.WriteLine(newSubtitles);
         }
 
         static string ffmpeg(string ffmpegPath, string arguments)
@@ -399,6 +417,7 @@ namespace NewsVideoGenerator
 
             string audioPath = $"{outputPath}/{id}.mp3";
             string subtitlesPath = $"{outputPath}/{id}.srt";
+            string subtitlesAtomisedPath = $"{outputPath}/{id}Atomised.srt";
             string videoTrimmedPath = $"{outputPath}/{id}Trimmed.mp4";
             string videoNoAudioPath = $"{outputPath}/{id}NoAudio.mp4";
             string videoSubtitlesPath = $"{outputPath}/{id}Subtitles.mp4";
@@ -426,7 +445,7 @@ namespace NewsVideoGenerator
             ffmpeg(ffmpegPath, $" -i {videoTrimmedPath}  -an {videoNoAudioPath}");
             Console.WriteLine("Video muted");
 
-            ffmpeg(ffmpegPath, $" -i {videoNoAudioPath} -vf subtitles={subtitlesPath} {videoSubtitlesPath}");
+            ffmpeg(ffmpegPath, $" -i {videoNoAudioPath} -vf subtitles={subtitlesAtomisedPath} {videoSubtitlesPath}");
             Console.WriteLine("Subtitles added");
 
             ffmpeg(ffmpegPath, $"-i {videoSubtitlesPath} -i {audioPath} -c:v copy -c:a aac -strict experimental {videoFinalPath}");
