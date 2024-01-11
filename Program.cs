@@ -431,7 +431,7 @@ namespace NewsVideoGenerator
             ffmpeg(ffmpegPath, $" -i {videoTrimmedPath}  -an {videoNoAudioPath}");
             Console.WriteLine("Video muted");
 
-            ffmpeg(ffmpegPath, $" -i {videoNoAudioPath} -vf subtitles={subtitlesAtomisedPath} {videoSubtitlesPath}");
+            ffmpeg(ffmpegPath, $" -i {videoNoAudioPath} -vf  \"subtitles={subtitlesAtomisedPath}:force_style='Alignment=10,Fontname=Haettenschweiler,FontSize=24,PrimaryColour=&HFFFFFF,SecondaryColour=&H000000'\" {videoSubtitlesPath}");
             Console.WriteLine("Subtitles added");
 
             ffmpeg(ffmpegPath, $"-i {videoSubtitlesPath} -i {audioPath} -c:v copy -c:a aac -strict experimental {videoFinalPath}");
